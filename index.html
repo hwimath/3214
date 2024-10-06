@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>휘매쓰 연산 챌린지!</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        #gameContainer {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        #difficultySelection, #gameContent {
+            margin-top: 20px;
+        }
+        button {
+            background-color: #ff7f50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #energyBarContainer {
+            width: 100%;
+            height: 20px;
+            background-color: #ddd;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+        #energyBar {
+            height: 100%;
+            width: 100%;
+            background-color: #4CAF50;
+            border-radius: 10px;
+            transition: width 0.1s linear;
+        }
+        #questionDisplay {
+            font-size: 18px;
+            margin: 20px 0;
+        }
+        #scoreBoard, #timeDisplay, #chanceDisplay {
+            margin: 10px 0;
+        }
+        #resultMessage {
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        #watermark {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            font-size: 12px;
+            color: #999;
+        }
+        table {
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        td {
+            border: 1px solid black;
+            padding: 10px;
+            text-align: center;
+        }
+        .options {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .option {
+            margin: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .option:hover {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <h1>휘매쓰 연산 챌린지!</h1>
+        <div id="difficultySelection">
+            <h2>난이도를 선택하세요:</h2>
+            <button onclick="startGame('상')">상</button>
+            <button onclick="startGame('중')">중</button>
+            <button onclick="startGame('하')">하</button>
+        </div>
+        <div id="gameContent" style="display: none;">
+            <div id="scoreBoard">점수: <span id="score">0</span></div>
+            <div id="timeDisplay">전체 게임 시간: <span id="totalTime">0</span>초</div>
+            <div id="chanceDisplay">남은 기회: <span id="chances">3</span></div>
+            <div id="energyBarContainer">
+                <div id="energyBar"></div>
+            </div>
+            <div id="questionDisplay"></div>
+            <div id="optionsContainer"></div>
+            <div id="resultMessage"></div>
+        </div>
+    </div>
+    <div id="watermark">휘매쓰</div>
+
+    <script>
+        let score = 0;
+        let mistakes = 0;
+        let currentQuestion;
+        let timeLimit;
+        let timer;
+        let gameInterval;
+        let totalGameTime = 0;
+        let totalGameTimer;
+        let difficulty;
+        let pointsPerQuestion;
+        let questionsAnswered = 0;
+
+        const predefinedQuestions = [
+            {table: [[2,4,6,8,10], [1,2,3,4,5]], correctEquation: "○ = ◇ × 2", options: ["◇ = ○ + 1", "○ = ◇ × 2", "○ = ◇ + 1"]},
+            {table: [[5,10,15,20,25], [10,20,30,40,50]], correctEquation: "◇ = ○ × 2", options: ["○ = ◇ + 25", "◇ = ○ × 2", "○ = ◇ + 5"]},
+            {table: [[1,2,3,4,5], [3,4,5,6,7]], correctEquation: "◇ = ○ + 2", options: ["◇ = ○ + 2", "○ = ◇ × 3", "◇ = ○ × 2"]},
+            {table: [[10,9,8,7,6], [5,4,3,2,1]], correctEquation: "○ = ◇ + 5", options: ["○ = ◇ × 3", "◇ = ○ × 2", "○ = ◇ + 5"]},
+            {table: [[3,6,9,12,15], [1,2,3,4,5]], correctEquation: "○ = ◇ × 3", options: ["◇ = ○ + 2", "○ = ◇ + 2", "○ = ◇ × 3"]},
+            {table: [[1,3,5,7,9], [2,6,10,14,18]], correctEquation: "◇ = ○ × 2", options: ["◇ = ○ + 1", "○ = ◇ + 1", "◇ = ○ × 2"]},
+            {table: [[5,6,7,8,9], [15,18,21,24,27]], correctEquation: "◇ = ○ × 3", options: ["○ = ◇ + 10", "◇ = ○ × 3", "◇ = ○ + 10"]},
+            {table: [[1,4,7,10,13], [2,5,8,11,14]], correctEquation: "◇ = ○ + 1", options: ["◇ = ○ + 1", "○ = ◇ × 2", "◇ = ○ × 2"]},
+            {table: [[5,10,15,20,25], [1,2,3,4,5]], correctEquation: "○ = ◇ × 5", options: ["◇ = ○ + 4", "○ = ◇ + 4", "○ = ◇ × 5"]},
+            {table: [[2,6,10,14,18], [1,3,5,7,9]], correctEquation: "○ = ◇ × 2", options: ["○ = ◇ + 1", "○ = ◇ × 2", "◇ = ○ + 1"]},
+            {table: [[3,6,9,12,15], [6,12,18,24,30]], correctEquation: "◇ = ○ × 2", options: ["○ = ◇ + 3", "◇ = ○ × 2", "◇ = ○ + 3"]},
+            {table: [[2,4,6,8,10], [6,8,10,12,14]], correctEquation: "◇ = ○ + 4", options: ["○ = ◇ × 3", "◇ = ○ + 4", "◇ = ○ × 3"]},
+            {table: [[1,3,5,7,9], [3,9,15,21,27]], correctEquation: "◇ = ○ × 3", options: ["○ = ◇ + 2", "◇ = ○ × 3", "◇ = ○ + 2"]},
+            {table: [[4,7,10,13,16], [2,5,8,11,14]], correctEquation: "○ = ◇ + 2", options: ["○ = ◇ × 2", "○ = ◇ + 2", "◇ = ○ × 2"]},
+            {table: [[5,8,11,14,17], [2,5,8,11,14]], correctEquation: "○ = ◇ + 3", options: ["◇ = ○ × 2", "○ = ◇ + 3", "○ = ◇ × 2"]},
+            {table: [[4,8,12,16,20], [2,6,10,14,18]], correctEquation: "○ = ◇ + 2", options: ["○ = ◇ + 2", "○ = ◇ × 3", "◇ = ○ × 3"]},
+            {table: [[3,7,11,15,19], [1,5,9,13,17]], correctEquation: "○ = ◇ + 2", options: ["◇ = ○ × 3", "○ = ◇ + 2", "○ = ◇ × 3"]},
+            {table: [[1,4,7,10,13], [0,3,6,9,12]], correctEquation: "○ = ◇ + 1", options: ["◇ = ○ × 4", "○ = ◇ × 4", "○ = ◇ + 1"]},
+            {table: [[3,5,7,9,11], [9,15,21,27,33]], correctEquation: "◇ = ○ × 3", options: ["◇ = ○ × 3", "○ = ◇ + 6", "◇ = ○ + 6"]},
+            {table: [[1,3,5,7,9], [4,6,8,10,12]], correctEquation: "◇ = ○ + 3", options: ["◇ = ○ + 3", "○ = ◇ × 2", "◇ = ○ × 2"]},
+            {table: [[4,9,14,19,24], [2,7,12,17,22]], correctEquation: "○ = ◇ + 2", options: ["○ = ◇ + 2", "○ = ◇ × 3", "◇ = ○ × 3"]},
+            {table: [[3,6,9,12,15], [9,18,27,36,45]], correctEquation: "◇ = ○ × 3", options: ["◇ = ○ × 3", "○ = ◇ + 1", "◇ = ○ + 2"]},
+            {table: [[5,10,15,20,25], [15,20,25,30,35]], correctEquation: "○ = ◇ - 10", options: ["○ = ◇ × 5", "○ = ◇ - 10", "◇ = ○ × 2"]},
+            {table: [[2,4,6,8,10], [8,10,12,14,16]], correctEquation: "◇ = ○ + 6", options: ["◇ = ○ + 6", "○ = ◇ + 4", "◇ = ○ × 3"]},
+            {table: [[1,3,5,7,9], [5,15,25,35,45]], correctEquation: "◇ = ○ × 5", options: ["○ = ◇ × 2", "◇ = ○ × 5", "○ = ◇ + 3"]},
+            {table: [[4,6,8,10,12], [8,10,12,14,16]], correctEquation: "◇ = ○ + 4", options: ["○ = ◇ + 1", "◇ = ○ + 4", "○ = ◇ × 2"]},
+            {table: [[5,10,15,20,25], [25,30,35,40,45]], correctEquation: "◇ = ○ + 20", options: ["◇ = ○ + 20", "○ = ◇ × 4", "◇ = ○ × 5"]},
+            {table: [[3,5,7,9,11], [1,6,11,16,21]], correctEquation: "◇ = ○ - 2", options: ["○ = ◇ × 5", "◇ = ○ - 2", "○ = ◇ + 1"]},
+            {table: [[2,4,6,8,10], [4,8,12,16,20]], correctEquation: "◇ = ○ × 2", options: ["○ = ◇ × 5", "◇ = ○ × 2", "○ = ◇ + 3"]},
+            {table: [[1,5,9,13,17], [3,15,27,39,51]], correctEquation: "◇ = ○ × 3", options: ["◇ = ○ × 3", "○ = ◇ × 2", "○ = ◇ + 1"]},
+            {table: [[5,8,11,14,17], [3,6,9,12,15]], correctEquation: "◇ = ○ - 2", options: ["○ = ◇ × 3", "◇ = ○ - 2", "○ = ◇ + 5"]},
+            {table: [[2,3,4,5,6], [10,15,20,25,30]], correctEquation: "◇ = ○ × 5", options: ["○ = ◇ + 1", "○ = ◇ × 5", "◇ = ○ × 5"]},
+            {table: [[3,4,5,6,7], [6,8,10,12,14]], correctEquation: "◇ = ○ × 2", options: ["○ = ◇ + 4", "◇ = ○ × 2", "○ = ◇ + 1"]}
+        ];
+        
+        function startGame(selectedDifficulty) {
+            difficulty = selectedDifficulty;
+            switch(difficulty) {
+                case '상':
+                    timeLimit = 20;
+                    pointsPerQuestion = 20;
+                    break;
+                case '중':
+                    timeLimit = 30;
+                    pointsPerQuestion = 15;
+                    break;
+                case '하':
+                    timeLimit = 40;
+                    pointsPerQuestion = 10;
+                    break;
+            }
+            
+            document.getElementById('difficultySelection').style.display = 'none';
+            document.getElementById('gameContent').style.display = 'block';
+            
+            resetGame();
+            nextQuestion();
+            startTimers();
+        }
+        
+        function resetGame() {
+            score = 0;
+            mistakes = 0;
+            questionsAnswered = 0;
+            totalGameTime = 0;
+            updateDisplay();
+        }
+        
+        function startTimers() {
+            gameInterval = setInterval(updateEnergyBar, 100);
+            totalGameTimer = setInterval(() => {
+                totalGameTime++;
+                document.getElementById('totalTime').textContent = totalGameTime;
+            }, 1000);
+        }
+        
+        function updateEnergyBar() {
+            timer -= 0.1;
+            const energyBar = document.getElementById('energyBar');
+            const width = (timer / timeLimit) * 100;
+            energyBar.style.width = width + '%';
+            
+            if (timer <= 0) {
+                clearInterval(gameInterval);
+                mistakes++;
+                updateDisplay();
+                if (mistakes >= 3) {
+                    endGame();
+                } else {
+                    nextQuestion();
+                }
+            }
+        }
+        
+        function nextQuestion() {
+            questionsAnswered++;
+            timeLimit *= 0.99;  // 시간이 1%씩 빨라짐
+            timer = timeLimit;
+            
+            currentQuestion = predefinedQuestions[Math.floor(Math.random() * predefinedQuestions.length)];
+            
+            let table = '<table><tr><td>○</td>';
+            currentQuestion.table[0].forEach(num => {
+                table += `<td>${num}</td>`;
+            });
+            table += '</tr><tr><td>◇</td>';
+            currentQuestion.table[1].forEach(num => {
+                table += `<td>${num}</td>`;
+            });
+            table += '</tr></table>';
+            
+            document.getElementById('questionDisplay').innerHTML = `
+                ${table}
+                <p>○와 ◇ 사이의 대응 관계를 식으로 나타낸 것을 모두 찾아 기호를 써 보세요.</p>
+            `;
+            
+            const optionsContainer = document.getElementById('optionsContainer');
+            optionsContainer.innerHTML = '';
+            currentQuestion.options.forEach((option, index) => {
+                optionsContainer.innerHTML += `<div class="option" onclick="checkAnswer(${index})">${String.fromCharCode(65 + index)}. ${option}</div>`;
+            });
+            
+            document.getElementById('resultMessage').textContent = '';
+        }
+        
+        function checkAnswer(selectedIndex) {
+            const selectedEquation = currentQuestion.options[selectedIndex];
+            if (selectedEquation === currentQuestion.correctEquation) {
+                score += pointsPerQuestion;
+                document.getElementById('resultMessage').textContent = '정답입니다!';
+                nextQuestion();
+            } else {
+                mistakes++;
+                document.getElementById('resultMessage').innerHTML = `틀렸습니다. 정답은 ${currentQuestion.correctEquation}입니다.`;
+                if (mistakes >= 3) {
+                    endGame();
+                } else {
+                    nextQuestion();
+                }
+            }
+            updateDisplay();
+        }
+        
+        function updateDisplay() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('chances').textContent = 3 - mistakes;
+        }
+        
+        function endGame() {
+            clearInterval(gameInterval);
+            clearInterval(totalGameTimer);
+            document.getElementById('gameContent').innerHTML = `
+                <h2>게임 종료!</h2>
+                <p>최종 점수: ${score}</p>
+                <p>총 게임 시간: ${totalGameTime}초</p>
+                <p>난이도: ${difficulty}</p>
+                <button onclick="location.reload()">다시 시작</button>
+            `;
+        }
+    </script>
+</body>
+</html>
